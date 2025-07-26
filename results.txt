@@ -1,0 +1,3 @@
+Recursivo (2 direcciones),19,0
+Recursivo (4 direcciones),21,0
+Recursivo (4 direcciones + Backtracking),21,2
