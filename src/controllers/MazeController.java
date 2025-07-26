@@ -22,111 +22,28 @@ public class MazeController {
     private JFrame parentFrame;
 
     // Estos atributos son públicos para que MazeFrame pueda verificar su estado
-    // Esto es aceptable para la comunicación Controller-View en Swing.
-    public List<Cell> currentAlgorithmVisitedSteps; // Usado solo para "Paso a paso"
-    public List<Cell> currentAlgorithmFinalPath;   // Usado para ambos, pero la animación del camino solo para "Resolver"
+    public List<Cell> currentAlgorithmVisitedSteps; // Usado para la animación de exploración (gris)
+    public List<Cell> currentAlgorithmFinalPath;   // Usado para el camino final (azul)
     public int currentStepIndex;
 
-    private Timer autoPathTimer; // Renombrado para claridad: para la animación automática del camino
+    private Timer animationTimer; // Un solo Timer para ambas animaciones automáticas/semi-automáticas
 
     public MazeController(MazePanel mazePanel, JFrame parentFrame) {
         this.mazePanel = mazePanel;
         this.parentFrame = parentFrame;
     }
 
-    // Método para la resolución automática y animación del CAMINO FINAL (Botón "Resolver")
-    public void solveMazeAndAnimatePath(String algorithmName) {
-        // Detener cualquier animación previa si está corriendo
-        if (autoPathTimer != null && autoPathTimer.isRunning()) {
-            autoPathTimer.stop();
-        }
-        resetSimulationState(); // Limpiar el estado de simulación anterior
-
-        Cell[][] mazeData = mazePanel.getMazeData(); // Obtener el laberinto actual
-
-        int startRow = -1, startCol = -1;
-        int endRow = -1, endCol = -1;
-        for (int r = 0; r < mazeData.length; r++) {
-            for (int c = 0; c < mazeData[0].length; c++) {
-                if (mazeData[r][c].getState() == CellState.START) {
-                    startRow = r;
-                    startCol = c;
-                } else if (mazeData[r][c].getState() == CellState.END) {
-                    endRow = r;
-                    endCol = c;
-                }
-            }
-        }
-
-        if (startRow == -1 || endRow == -1) {
-            JOptionPane.showMessageDialog(parentFrame, "Debe establecer el punto de inicio y fin del laberinto.", "Error de Solución", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-
-        MazeSolver solver = getSolverInstance(algorithmName);
-        if (solver == null) {
-            JOptionPane.showMessageDialog(parentFrame, "Algoritmo no soportado: " + algorithmName, "Error de Algoritmo", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-
-        mazePanel.resetPathAndVisitedStates(); // Limpiar solo los estados de recorrido (gris/azul)
-
-        // *** AHORA SOLO OBTENEMOS EL CAMINO FINAL PARA ESTA FUNCIÓN ***
-        currentAlgorithmFinalPath = solver.solve(mazeData, startRow, startCol, endRow, endCol);
-
-        currentStepIndex = 0; // Reiniciar índice para la animación
-
-        if (currentAlgorithmFinalPath.isEmpty()) {
-            JOptionPane.showMessageDialog(parentFrame, "No se encontró un camino para el laberinto.", "Sin Solución", JOptionPane.INFORMATION_MESSAGE);
-            currentAlgorithmFinalPath = null; // Asegurarse de limpiar
-            return;
-        }
-
-        // Si hay un camino, iniciamos la animación del camino
-        // El camino ya incluye START y END, pero queremos evitar pintarlos de azul
-        // La animación debe comenzar después de START y terminar antes de END
-        List<Cell> pathForAnimation = new ArrayList<>(currentAlgorithmFinalPath);
-        if (!pathForAnimation.isEmpty()) {
-            // Eliminar inicio y fin de la lista para la animación si existen en los extremos
-            if (pathForAnimation.get(0).getState() == CellState.START) {
-                pathForAnimation.remove(0);
-            }
-            if (!pathForAnimation.isEmpty() && pathForAnimation.get(pathForAnimation.size() - 1).getState() == CellState.END) {
-                pathForAnimation.remove(pathForAnimation.size() - 1);
-            }
-        }
-
-        // Guardar esta lista ajustada para el timer
-        final List<Cell> finalPathToAnimate = pathForAnimation;
-
-        autoPathTimer = new Timer(500, e -> { // 500ms (0.5 segundos) de delay
-            if (currentStepIndex < finalPathToAnimate.size()) {
-                Cell pathCell = finalPathToAnimate.get(currentStepIndex);
-                // SOLO pintamos de PATH (azul), protegiendo START/END/WALL
-                mazePanel.updateCellState(pathCell.getRow(), pathCell.getCol(), CellState.PATH);
-                currentStepIndex++;
-            } else {
-                autoPathTimer.stop();
-                // Una vez que la animación termina, aseguramos que todo el camino final (incluyendo START/END) esté pintado.
-                // Sin embargo, MazePanel.drawPath ya protege START/END, así que esto es seguro.
-                mazePanel.drawPath(currentAlgorithmFinalPath);
-                JOptionPane.showMessageDialog(parentFrame, "Resolución automática completada. Camino encontrado.", "Fin de Resolución", JOptionPane.INFORMATION_MESSAGE);
-                resetSimulationState(); // Limpiar el estado después de la animación automática
-            }
-        });
-        autoPathTimer.start();
-    }
-
-
-    // Prepara los datos para la simulación paso a paso manual (Botón "Paso a paso")
-    public void prepareStepByStep(String algorithmName) {
-        // Asegúrate de detener cualquier animación automática en curso
-        if (autoPathTimer != null && autoPathTimer.isRunning()) {
-            autoPathTimer.stop();
+    // Método para la resolución automática y animación completa (Botón "Resolver")
+    // Ahora funciona como una versión automática del "Paso a paso"
+    public void solveMazeAutomatically(String algorithmName) {
+        // Asegúrate de detener cualquier animación previa si está corriendo
+        if (animationTimer != null && animationTimer.isRunning()) {
+            animationTimer.stop();
         }
         resetSimulationState(); // Limpiar el estado de simulación anterior
 
         Cell[][] mazeData = mazePanel.getMazeData();
+
         int startRow = -1, startCol = -1;
         int endRow = -1, endCol = -1;
         for (int r = 0; r < mazeData.length; r++) {
@@ -152,13 +69,86 @@ public class MazeController {
             return;
         }
 
-        mazePanel.resetPathAndVisitedStates(); // Limpiar solo los estados de recorrido
+        mazePanel.resetPathAndVisitedStates(); // Limpiar cualquier rastro de caminos o visitas anteriores
 
-        // Para paso a paso, necesitamos TODOS los pasos de la exploración (visitedSteps)
+        // Obtener la lista COMPLETA de pasos de exploración Y el camino final
         currentAlgorithmVisitedSteps = solver.solveAndGetSteps(mazeData, startRow, startCol, endRow, endCol);
-        currentAlgorithmFinalPath = solver.solve(mazeData, startRow, startCol, endRow, endCol); // También el camino final para el resaltado
+        currentAlgorithmFinalPath = solver.solve(mazeData, startRow, startCol, endRow, endCol);
 
         currentStepIndex = 0;
+
+        if (currentAlgorithmVisitedSteps.isEmpty()) {
+            JOptionPane.showMessageDialog(parentFrame, "No se encontró un camino o no hay pasos para mostrar.", "Sin Solución", JOptionPane.INFORMATION_MESSAGE);
+            currentAlgorithmFinalPath = null;
+            return;
+        }
+
+        // Iniciar el Timer para la animación automática paso a paso
+        animationTimer = new Timer(100, e -> { // Velocidad de la animación (ej. 100ms por celda)
+            if (currentStepIndex < currentAlgorithmVisitedSteps.size()) {
+                Cell stepCell = currentAlgorithmVisitedSteps.get(currentStepIndex);
+
+                // La lógica de pintado es la misma que en advanceStep()
+                if (isCellInPath(stepCell, currentAlgorithmFinalPath) && stepCell.getState() != CellState.START && stepCell.getState() != CellState.END) {
+                    mazePanel.updateCellState(stepCell.getRow(), stepCell.getCol(), CellState.PATH); // Azul si es parte del camino
+                } else if (stepCell.getState() != CellState.START && stepCell.getState() != CellState.END) {
+                    mazePanel.updateCellState(stepCell.getRow(), stepCell.getCol(), CellState.VISITED); // Gris si es solo visitado
+                }
+                currentStepIndex++;
+            } else {
+                animationTimer.stop();
+                mazePanel.drawPath(currentAlgorithmFinalPath); // Asegurar que el camino final esté completamente en azul
+                JOptionPane.showMessageDialog(parentFrame, "Resolución automática completada.", "Fin de Resolución", JOptionPane.INFORMATION_MESSAGE);
+                resetSimulationState(); // Limpiar el estado después de la animación
+            }
+        });
+        animationTimer.start();
+    }
+
+
+    // Método para iniciar la preparación para el paso a paso manual (Botón "Paso a paso")
+    // Este método solo prepara los datos, no inicia un Timer.
+    public void prepareStepByStep(String algorithmName) {
+        // Asegúrate de detener cualquier animación automática en curso
+        if (animationTimer != null && animationTimer.isRunning()) {
+            animationTimer.stop();
+        }
+        resetSimulationState(); // Limpiar el estado de simulación anterior
+
+        Cell[][] mazeData = mazePanel.getMazeData();
+
+        int startRow = -1, startCol = -1;
+        int endRow = -1, endCol = -1;
+        for (int r = 0; r < mazeData.length; r++) {
+            for (int c = 0; c < mazeData[0].length; c++) {
+                if (mazeData[r][c].getState() == CellState.START) {
+                    startRow = r;
+                    startCol = c;
+                } else if (mazeData[r][c].getState() == CellState.END) {
+                    endRow = r;
+                    endCol = c;
+                }
+            }
+        }
+
+        if (startRow == -1 || endRow == -1) {
+            JOptionPane.showMessageDialog(parentFrame, "Debe establecer el punto de inicio y fin del laberinto.", "Error de Solución", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        MazeSolver solver = getSolverInstance(algorithmName);
+        if (solver == null) {
+            JOptionPane.showMessageDialog(parentFrame, "Algoritmo no soportado: " + algorithmName, "Error de Algoritmo", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        mazePanel.resetPathAndVisitedStates(); // Limpiar cualquier rastro de caminos o visitas anteriores
+
+        // Obtener la lista COMPLETA de pasos de exploración Y el camino final
+        currentAlgorithmVisitedSteps = solver.solveAndGetSteps(mazeData, startRow, startCol, endRow, endCol);
+        currentAlgorithmFinalPath = solver.solve(mazeData, startRow, startCol, endRow, endCol);
+
+        currentStepIndex = 0; // Reiniciar índice para el paso a paso
         if (currentAlgorithmVisitedSteps.isEmpty()) {
             JOptionPane.showMessageDialog(parentFrame, "No hay pasos para mostrar para este laberinto.", "Sin Pasos", JOptionPane.INFORMATION_MESSAGE);
             currentAlgorithmFinalPath = null;
@@ -167,7 +157,7 @@ public class MazeController {
         JOptionPane.showMessageDialog(parentFrame, "Listo para simulación paso a paso. Haga clic en 'Paso a paso' para avanzar.", "Paso a Paso", JOptionPane.INFORMATION_MESSAGE);
     }
 
-    // Avanza un solo paso en la simulación manual (Botón "Paso a paso")
+    // Método para avanzar un paso en la simulación manual (Cada clic en "Paso a paso")
     public void advanceStep() {
         if (currentAlgorithmVisitedSteps == null || currentStepIndex >= currentAlgorithmVisitedSteps.size()) {
             JOptionPane.showMessageDialog(parentFrame, "Simulación paso a paso completada. El camino final ya está resaltado o no hay pasos para iniciar. Presione 'Resolver' o 'Limpiar' para iniciar una nueva.", "Fin de Pasos", JOptionPane.INFORMATION_MESSAGE);
@@ -176,17 +166,16 @@ public class MazeController {
 
         Cell stepCell = currentAlgorithmVisitedSteps.get(currentStepIndex);
 
-        // Si la celda es parte del camino final Y NO ES START/END, la marcamos como PATH (azul)
+        // La lógica de pintado es la misma que en solveMazeAutomatically()
         if (isCellInPath(stepCell, currentAlgorithmFinalPath) && stepCell.getState() != CellState.START && stepCell.getState() != CellState.END) {
-            mazePanel.updateCellState(stepCell.getRow(), stepCell.getCol(), CellState.PATH);
+            mazePanel.updateCellState(stepCell.getRow(), stepCell.getCol(), CellState.PATH); // Azul si es parte del camino
         } else if (stepCell.getState() != CellState.START && stepCell.getState() != CellState.END) {
-            // Si NO es parte del camino final Y NO ES START/END, la marcamos como VISITED (gris)
-            mazePanel.updateCellState(stepCell.getRow(), stepCell.getCol(), CellState.VISITED);
+            mazePanel.updateCellState(stepCell.getRow(), stepCell.getCol(), CellState.VISITED); // Gris si es solo visitado
         }
-        // Incrementamos el índice para el siguiente paso
         currentStepIndex++;
 
-        // Cuando todos los pasos de exploración han sido mostrados
+        // Si es el último paso o se llega al final de los pasos de exploración,
+        // entonces mostramos el camino final completo en azul.
         if (currentStepIndex == currentAlgorithmVisitedSteps.size()) {
             mazePanel.drawPath(currentAlgorithmFinalPath); // Asegura que el camino final esté completamente azul
             JOptionPane.showMessageDialog(parentFrame, "Simulación paso a paso completada. Camino final resaltado.", "Fin de Simulación", JOptionPane.INFORMATION_MESSAGE);
@@ -196,8 +185,8 @@ public class MazeController {
 
     // Método para resetear el estado interno del controlador
     public void resetSimulationState() {
-        if (autoPathTimer != null && autoPathTimer.isRunning()) {
-            autoPathTimer.stop();
+        if (animationTimer != null && animationTimer.isRunning()) {
+            animationTimer.stop();
         }
         currentAlgorithmVisitedSteps = null;
         currentAlgorithmFinalPath = null;

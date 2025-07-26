@@ -17,7 +17,7 @@ public class MazePanel extends JPanel {
     public enum Interaction_Mode {
         NONE, SET_START, SET_END, TOGGLE_WALL
     }
-    private Interaction_Mode currentMode = Interaction_Mode.NONE;
+    Interaction_Mode currentMode = Interaction_Mode.NONE;
 
     public MazePanel(int rows, int cols) {
         this.numRows = rows;
@@ -98,12 +98,16 @@ public class MazePanel extends JPanel {
             case SET_START:
                 clearPreviousState(CellState.START);
                 clickedCell.setState(CellState.START);
+                currentMode = Interaction_Mode.NONE; // Vuelve a NONE después de establecer START
                 break;
             case SET_END:
                 clearPreviousState(CellState.END);
                 clickedCell.setState(CellState.END);
+                currentMode = Interaction_Mode.NONE; // Vuelve a NONE después de establecer END
                 break;
             case TOGGLE_WALL:
+                // Si el modo es TOGGLE_WALL, NO CAMBIA a NONE.
+                // Permite múltiples clics para alternar paredes.
                 if (clickedCell.getState() == CellState.WALL) {
                     clickedCell.setState(CellState.EMPTY);
                 } else if (clickedCell.getState() == CellState.EMPTY) {
@@ -115,9 +119,9 @@ public class MazePanel extends JPanel {
                 System.out.println("Modo de interacción no seleccionado.");
                 break;
         }
-        currentMode = Interaction_Mode.NONE;
         repaint();
     }
+
 
     private void clearPreviousState(CellState stateToClear) {
         for (int r = 0; r < numRows; r++) {
@@ -155,10 +159,9 @@ public class MazePanel extends JPanel {
         repaint();
     }
 
-    // Este método está bien, ya protege START/END
     public void drawPath(List<Cell> path) {
         if (path == null) return;
-        resetPathAndVisitedStates();
+        // resetPathAndVisitedStates(); // Ya se llama en MazeController al inicio de la simulación
 
         for (Cell cell : path) {
             if (cell.getState() != CellState.START && cell.getState() != CellState.END) {
@@ -168,21 +171,14 @@ public class MazePanel extends JPanel {
         repaint();
     }
 
-    // Método para actualizar el estado de una celda específica
-    // IMPORTANTE: Asegurarse de que no sobrescriba START/END con VISITED/PATH
     public void updateCellState(int row, int col, CellState newState) {
         if (row >= 0 && row < numRows && col >= 0 && col < numCols) {
             Cell currentCell = mazeData[row][col];
-            // Solo actualiza si la celda NO es START, END o WALL.
-            // Los estados START y END nunca deben ser sobrescritos por VISITED o PATH.
-            // WALL tampoco debe ser sobrescrito.
             if (currentCell.getState() != CellState.START &&
                     currentCell.getState() != CellState.END &&
-                    currentCell.getState() != CellState.WALL) {
+                    currentCell.getState() != CellState.WALL) { // No actualizar si ya es una pared
                 currentCell.setState(newState);
             }
-            // Si el nuevo estado es PATH, y la celda es START o END, no hagas nada,
-            // ya que START/END tienen prioridad visual.
             repaint();
         }
     }
