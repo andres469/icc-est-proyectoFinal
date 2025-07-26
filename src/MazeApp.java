@@ -1,7 +1,6 @@
 package src;
 
 import src.views.MazeFrame;
-
 import javax.swing.*;
 
 public class MazeApp {
@@ -11,7 +10,6 @@ public class MazeApp {
             int numRows = 0;
             int numCols = 0;
 
-            // Paso 1: Pedir número de filas
             String rowsStr = JOptionPane.showInputDialog(null, "Ingrese número de filas:", "Input", JOptionPane.QUESTION_MESSAGE);
             if (rowsStr != null && !rowsStr.trim().isEmpty()) {
                 try {
@@ -26,7 +24,6 @@ public class MazeApp {
                 }
             }
 
-            // Paso 2: Pedir número de columnas (solo si las filas son válidas)
             if (numRows > 0) {
                 String colsStr = JOptionPane.showInputDialog(null, "Ingrese número de columnas:", "Input", JOptionPane.QUESTION_MESSAGE);
                 if (colsStr != null && !colsStr.trim().isEmpty()) {
@@ -43,10 +40,7 @@ public class MazeApp {
                 }
             }
 
-            // Paso 3: Si ambos son válidos, crear y mostrar el MazeFrame
             if (numRows > 0 && numCols > 0) {
-                // Aquí deberías crear tu objeto Maze (el modelo) y pasárselo a MazeFrame
-                // Por ahora, solo pasamos las dimensiones
                 MazeFrame mazeFrame = new MazeFrame(numRows, numCols);
                 mazeFrame.setVisible(true);
             } else {

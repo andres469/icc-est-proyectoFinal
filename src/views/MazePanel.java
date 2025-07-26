@@ -5,17 +5,15 @@ import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.List;
-import src.models.Cell; // Asegúrate de importar tus clases de modelo
-import src.models.CellState; // Y tus estados de celda
-// import src.models.Maze; // Si tienes un objeto Maze central
+import src.models.Cell;
+import src.models.CellState;
 
 public class MazePanel extends JPanel {
 
     private int numRows;
     private int numCols;
-    private Cell[][] mazeData; // Tu modelo de datos del laberinto (de src.models)
+    private Cell[][] mazeData;
 
-    // Enum para el modo de interacción actual
     public enum Interaction_Mode {
         NONE, SET_START, SET_END, TOGGLE_WALL
     }
@@ -24,18 +22,16 @@ public class MazePanel extends JPanel {
     public MazePanel(int rows, int cols) {
         this.numRows = rows;
         this.numCols = cols;
-        setPreferredSize(new Dimension(cols * 30, rows * 30)); // Tamaño preferido (ej. 30px por celda)
-        setBackground(Color.WHITE); // Fondo por defecto
+        setPreferredSize(new Dimension(cols * 30, rows * 30));
+        setBackground(Color.WHITE);
 
-        // Inicializar el modelo del laberinto
         this.mazeData = new Cell[rows][cols];
         for (int r = 0; r < rows; r++) {
             for (int c = 0; c < cols; c++) {
-                mazeData[r][c] = new Cell(r, c, CellState.EMPTY); // Todas las celdas vacías al inicio
+                mazeData[r][c] = new Cell(r, c, CellState.EMPTY);
             }
         }
 
-        // Añadir el MouseListener para manejar clics en las celdas
         addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -52,10 +48,9 @@ public class MazePanel extends JPanel {
         });
     }
 
-    // Método para dibujar el laberinto
     @Override
     protected void paintComponent(Graphics g) {
-        super.paintComponent(g); // Siempre llama a super.paintComponent
+        super.paintComponent(g);
 
         int cellWidth = getWidth() / numCols;
         int cellHeight = getHeight() / numRows;
@@ -65,7 +60,6 @@ public class MazePanel extends JPanel {
                 int x = c * cellWidth;
                 int y = r * cellHeight;
 
-                // Dibujar el fondo de la celda según su estado
                 Color cellColor;
                 CellState state = mazeData[r][c].getState();
                 switch (state) {
@@ -78,43 +72,38 @@ public class MazePanel extends JPanel {
                     case END:
                         cellColor = Color.RED;
                         break;
-                    case VISITED: // Para visualización paso a paso o al final
-                        cellColor = Color.LIGHT_GRAY;
+                    case VISITED:
+                        cellColor = Color.LIGHT_GRAY; // Gris para celdas visitadas en paso a paso
                         break;
-                    case PATH: // Para el camino final
-                        cellColor = Color.BLUE;
+                    case PATH:
+                        cellColor = Color.BLUE; // Azul para el camino final
                         break;
-                    default: // EMPTY
+                    default:
                         cellColor = Color.WHITE;
                         break;
                 }
                 g.setColor(cellColor);
                 g.fillRect(x, y, cellWidth, cellHeight);
 
-                // Dibujar el borde de la celda
                 g.setColor(Color.BLACK);
                 g.drawRect(x, y, cellWidth, cellHeight);
             }
         }
     }
 
-    // Método para manejar el clic en una celda
     private void handleCellClick(int row, int col) {
         Cell clickedCell = mazeData[row][col];
 
         switch (currentMode) {
             case SET_START:
-                // Limpiar cualquier inicio anterior y establecer el nuevo
                 clearPreviousState(CellState.START);
                 clickedCell.setState(CellState.START);
                 break;
             case SET_END:
-                // Limpiar cualquier fin anterior y establecer el nuevo
                 clearPreviousState(CellState.END);
                 clickedCell.setState(CellState.END);
                 break;
             case TOGGLE_WALL:
-                // Alternar entre PARED y VACÍA
                 if (clickedCell.getState() == CellState.WALL) {
                     clickedCell.setState(CellState.EMPTY);
                 } else if (clickedCell.getState() == CellState.EMPTY) {
@@ -123,27 +112,24 @@ public class MazePanel extends JPanel {
                 break;
             case NONE:
             default:
-                // No hacer nada si no hay modo seleccionado o es desconocido
                 System.out.println("Modo de interacción no seleccionado.");
                 break;
         }
-        currentMode = Interaction_Mode.NONE; // Resetear el modo después de la interacción
-        repaint(); // Redibujar el panel para mostrar los cambios
+        currentMode = Interaction_Mode.NONE;
+        repaint();
     }
 
-    // Método auxiliar para limpiar estados START/END previos
     private void clearPreviousState(CellState stateToClear) {
         for (int r = 0; r < numRows; r++) {
             for (int c = 0; c < numCols; c++) {
                 if (mazeData[r][c].getState() == stateToClear) {
                     mazeData[r][c].setState(CellState.EMPTY);
-                    return; // Asumimos un solo inicio/fin
+                    return;
                 }
             }
         }
     }
 
-    // Métodos públicos para ser llamados desde MazeFrame
     public void setInteractionMode(Interaction_Mode mode) {
         this.currentMode = mode;
     }
@@ -157,19 +143,50 @@ public class MazePanel extends JPanel {
         repaint();
     }
 
-    // Método para dibujar el camino después de la resolución
-    public void drawPath(List<Cell> path) {
-        if (path == null) return;
-        for (Cell cell : path) {
-            // Asegúrate de no sobrescribir START/END si es parte del camino
-            if (cell.getState() != CellState.START && cell.getState() != CellState.END) {
-                cell.setState(CellState.PATH);
+    public void resetPathAndVisitedStates() {
+        for (int r = 0; r < numRows; r++) {
+            for (int c = 0; c < numCols; c++) {
+                CellState currentState = mazeData[r][c].getState();
+                if (currentState == CellState.VISITED || currentState == CellState.PATH) {
+                    mazeData[r][c].setState(CellState.EMPTY);
+                }
             }
         }
         repaint();
     }
 
-    // Getter para que MazeFrame pueda obtener los datos del laberinto para los algoritmos
+    // Este método está bien, ya protege START/END
+    public void drawPath(List<Cell> path) {
+        if (path == null) return;
+        resetPathAndVisitedStates();
+
+        for (Cell cell : path) {
+            if (cell.getState() != CellState.START && cell.getState() != CellState.END) {
+                mazeData[cell.getRow()][cell.getCol()].setState(CellState.PATH);
+            }
+        }
+        repaint();
+    }
+
+    // Método para actualizar el estado de una celda específica
+    // IMPORTANTE: Asegurarse de que no sobrescriba START/END con VISITED/PATH
+    public void updateCellState(int row, int col, CellState newState) {
+        if (row >= 0 && row < numRows && col >= 0 && col < numCols) {
+            Cell currentCell = mazeData[row][col];
+            // Solo actualiza si la celda NO es START, END o WALL.
+            // Los estados START y END nunca deben ser sobrescritos por VISITED o PATH.
+            // WALL tampoco debe ser sobrescrito.
+            if (currentCell.getState() != CellState.START &&
+                    currentCell.getState() != CellState.END &&
+                    currentCell.getState() != CellState.WALL) {
+                currentCell.setState(newState);
+            }
+            // Si el nuevo estado es PATH, y la celda es START o END, no hagas nada,
+            // ya que START/END tienen prioridad visual.
+            repaint();
+        }
+    }
+
     public Cell[][] getMazeData() {
         return mazeData;
     }
